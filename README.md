@@ -15,15 +15,21 @@ The script in this repo generates [bulk import](https://www.pulumi.com/docs/iac/
 
 * Be sure you are logged into the Azure CLI.
   * e.g. `az login`
+* See [Usage](#Usage) for steps to generate the bulk import file(s).
 * If necessary, initialize a stack into which the resources will be imported.
   * Create a folder for the Pulumi project.
   * Use pulumi new to initialize the stack.
-    * e.g. `pulumi new azure-csharp` 
+    * e.g. You can use `pulumi new azure-csharp` to bootstrap a Pulumi project/program.
+      * Remove all the resources from the bootstrapped program.
+  * Run `pulumi up` to run the empty stack.
+    * It should just have the one "Stack" resource in it at this point.
 * Run the `gen_bulk_import_file` script (see [Usage](#Usage)).
 * For each generated bulk import file do the following:
   * `pulumi import -f BULK_IMPORT_FILE_NAME -o GEN_CODE`
     * Where `BULK_IMPORT_FILE_NAME` is the name of the bulk import file you are processing.
     * Where `GEN_CODE` is the name of a file into which the generated code will be placed.
+  * If the resource group is not part of the resources list, you'll likely want to import it now as well.
+    * You can just use the command line [resource group import](https://www.pulumi.com/registry/packages/azure-native/api-docs/resources/resourcegroup/#import)
   * Edit the generated code to clean it up.
     * Remove any default property settings.
       * This cleans up the code by removing unnecessary lines.
@@ -32,6 +38,7 @@ The script in this repo generates [bulk import](https://www.pulumi.com/docs/iac/
       * A later step will show you if you were overzealous with your removal and can put things back (hence the commenting out for now).
     * Change any hard-coded references to references to other resource's properties.
       * You may do this at the very end once all the resources are in the program.
+      * This is important to create implicit dependencies for future stacks.
       * Pulumi AI/Copilot can help do this abstraction as well.
         * e.g. Ask it to "replace hard-coded values with resource property references for the following program" and pass the program.
   * Copy the code from the generated code file into the main Pulumi program file.
@@ -48,6 +55,7 @@ The script in this repo generates [bulk import](https://www.pulumi.com/docs/iac/
 * Final cleaning of the program code (ONLY DO IF YOU DELETED THE STATE or you understand the implications of these changes).
   * The generated code uses rather simple names for the resource declarations. So you'll likely want to clean up the code in this regard.
     * E.g. `storageaccount1 = ...` should probably be something like `appstorage = ...`
+  * Clean up any remaining hard-coded values to reference the applicable property from other resources.
   * Make the program reusable by implementing [stack configuration](https://www.pulumi.com/docs/iac/concepts/config/).
     * The goal is to allow the same program to be used to deploy multiple, separate environments.
     * The code probably has various hard-coded values that you want to abstract on a stack-by-stack basis.
