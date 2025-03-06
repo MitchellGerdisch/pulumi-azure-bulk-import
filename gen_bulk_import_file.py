@@ -1,13 +1,12 @@
 import json
-from operator import itemgetter
 import argparse
 
 def main():
 
   parser = argparse.ArgumentParser(description="Generate a Pulumi bulk import file from an Azure resources file.")
   parser.add_argument("-r", "--resources_file", help="Path to the Azure resources file generated using 'az resource list'", required=True)
-  parser.add_argument("-o", "--output_file", help="Path to the output generated bulk file", required=True)
-  parser.add_argument("-n", "--num_resources_per_file", type=int, help="Number of resources to put in each bulk-import file. (default=20)", default=20)
+  parser.add_argument("-o", "--output_file_base_name", help="Base name for the generated bulk import file(s)", default="pulumi_bulk_import")
+  parser.add_argument("-n", "--num_resources_per_file", type=int, help="Number of resources to put in each bulk-import file. (default=5)", default=5)
 
   args = parser.parse_args()
 
@@ -15,8 +14,7 @@ def main():
   azure_resources_file = args.resources_file
 
   # This is the bulk imoprt file that will be generated.
-  bulk_import_file = args.output_file
-  bulk_import_file_base = bulk_import_file.split('.')[0]
+  bulk_import_file_base = args.output_file_base_name
 
   # Number of resources to put in each bulk-import file.
   num_resources_per_file = args.num_resources_per_file
@@ -30,9 +28,6 @@ def main():
   try:
       with open(azure_resources_file, 'r') as file:
           azure_resources = json.load(file)
-          # Sort the resources by type.
-          # This way the imported resources will be grouped by type in the generated code which should make it easier to refactor into loops or functions, etc.
-          azure_resources = sorted(azure_resources, key=itemgetter('type'))
   except FileNotFoundError:
       print(f"Error: File, {azure_resources_file}, not found.")
   except json.JSONDecodeError:
@@ -60,7 +55,7 @@ def main():
           # Build a given resource's bulk import object
           # See https://www.pulumi.com/docs/iac/adopting-pulumi/import/#bulk-import-operations for format
           pulumi_type = type_mappings[resource_type]
-          pulumi_name = pulumi_type.split(':')[-1]
+          pulumi_name = generate_pulumi_name(pulumi_type)
           azure_id = resource['id']
           # Add the resource to the bulk import array
           bulk_resource = {
@@ -80,6 +75,19 @@ def main():
   # Write any remaining resources to the bulk import file
   if num_resources_processed % num_resources_per_file != 0:
       write_bulk_import_file(bulk_resources, f"{bulk_import_file_base}_{(num_resources_processed//num_resources_per_file)+1}.json")
+
+# Generate a unique pulumi name for the resource.
+# It is likely the name will be modified to something more meaningful but for the import to work it must be unique.
+resource_names = {} # this array is used to store the names of resources that have already been used
+def generate_pulumi_name(resource_type):
+    if resource_type in resource_names: 
+        # Get the next available number to create the name
+        resource_names[resource_type] += 1
+    else:
+        resource_names[resource_type] = 1
+
+    resource_name = f"{resource_type.split(':')[-1].lower()}_{resource_names[resource_type]}"
+    return resource_name
 
 # Write the bulk import file
 def write_bulk_import_file(bulk_resources, bulk_import_file):
